@@ -317,7 +317,7 @@ Menunjukkan kekuatan tren BUY/SELL dalam persentase di semua timeframe:
 ## 📞 Support
 
 Untuk pertanyaan atau bug report:
-- Email: support@delawainc.com (contoh)
+- Email: akuncadangandelawa@ggggg.com
 - GitHub Issues: [link repo]
 
 ---
