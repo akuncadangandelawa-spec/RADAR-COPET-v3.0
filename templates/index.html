@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Copet v3.0 - DELAWA Inc.</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.05);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(0,255,136,0.2);
+        }
+        .header h1 {
+            color: #00ff88;
+            font-size: 1.5em;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: rgba(255,255,255,0.05);
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        select, button {
+            background: #1a1f3a;
+            color: #00ff88;
+            border: 1px solid #00ff88;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        select:hover, button:hover {
+            background: #00ff88;
+            color: #0a0e27;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        .card {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .card h2 {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+        
+        /* GAUGE STYLES */
+        .gauge-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+            position: relative;
+        }
+        .gauge-wrapper {
+            position: relative;
+            width: 220px;
+            height: 220px;
+        }
+        .gauge-svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        .gauge-bg {
+            fill: none;
+            stroke: rgba(255,255,255,0.1);
+            stroke-width: 20;
+        }
+        .gauge-progress {
+            fill: none;
+            stroke: #00ff88;
+            stroke-width: 20;
+            stroke-linecap: round;
+            transition: stroke-dasharray 0.5s ease, stroke 0.3s ease;
+        }
+        .gauge-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            width: 160px;
+        }
+        .gauge-label {
+            font-size: 0.85em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        .gauge-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0,255,136,0.5);
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }
+        .gauge-status {
+            font-size: 0.75em;
+            color: #888;
+            margin-top: 5px;
+        }
+        .gauge-wrapper.buy .gauge-progress {
+            stroke: #00ff88;
+            filter: drop-shadow(0 0 8px rgba(0,255,136,0.8));
+        }
+        .gauge-wrapper.buy .gauge-value {
+            color: #00ff88;
+            text-shadow: 0 0 15px rgba(0,255,136,0.8);
+        }
+        .gauge-wrapper.sell .gauge-progress {
+            stroke: #ff4444;
+            filter: drop-shadow(0 0 8px rgba(255,68,68,0.8));
+        }
+        .gauge-wrapper.sell .gauge-value {
+            color: #ff4444;
+            text-shadow: 0 0 15px rgba(255,68,68,0.8);
+        }
+        .gauge-wrapper.wait .gauge-progress {
+            stroke: #ffaa00;
+            filter: drop-shadow(0 0 8px rgba(255,170,0,0.6));
+        }
+        .gauge-wrapper.wait .gauge-value {
+            color: #ffaa00;
+            text-shadow: 0 0 15px rgba(255,170,0,0.6);
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px dashed rgba(255,255,255,0.05);
+            font-size: 0.9em;
+        }
+        .info-row .label {
+            color: #888;
+        }
+        .info-row .value {
+            color: #fff;
+            font-family: 'Consolas', monospace;
+        }
+        .timer {
+            display: inline-block;
+            background: #ffaa00;
+            color: #000;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-family: monospace;
+        }
+        .power-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+        @media (max-width: 600px) {
+            .power-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        .power-cell {
+            background: rgba(255,255,255,0.05);
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .power-cell .tf {
+            font-size: 0.8em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        .power-cell .val {
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        .power-cell.buy {
+            border: 1px solid #00ff88;
+            color: #00ff88;
+        }
+        .power-cell.sell {
+            border: 1px solid #ff4444;
+            color: #ff4444;
+        }
+        .market-info {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        @media (max-width: 600px) {
+            .market-info { grid-template-columns: repeat(2, 1fr); }
+        }
+        .market-info .box {
+            background: rgba(255,255,255,0.05);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .market-info .box .label {
+            font-size: 0.75em;
+            color: #888;
+            text-transform: uppercase;
+        }
+        .market-info .box .val {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #00ff88;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📡 RADAR COPET v3.0</h1>
+        <div style="color: #888; font-size: 0.85em;">DELAWA Inc.</div>
+    </div>
+
+    <div class="controls">
+        <label>Symbol:</label>
+        <select id="symbolSelect">
+            {% for sym in symbols %}
+                <option value="{{ sym }}">{{ sym }}</option>
+            {% endfor %}
+        </select>
+        <button onclick="toggleSound()">🔊 <span id="soundLabel">ON</span></button>
+    </div>
+
+    <div class="market-info">
+        <div class="box"><div class="label">Spread</div><div class="val" id="spread">-</div></div>
+        <div class="box"><div class="label">Daily Open</div><div class="val" id="dailyOpen">-</div></div>
+        <div class="box"><div class="label">Distance</div><div class="val" id="openPips">-</div></div>
+        <div class="box"><div class="label">Last Update</div><div class="val" id="lastUpdate">-</div></div>
+    </div>
+
+    <div class="grid">
+        <!-- M1 Card with Gauge -->
+        <div class="card">
+            <h2>⏱ TIMEFRAME M1 (SCALPING ENTRY)</h2>
+            
+            <!-- GAUGE -->
+            <div class="gauge-container">
+                <div class="gauge-wrapper wait" id="m1-gauge-wrapper">
+                    <svg class="gauge-svg" viewBox="0 0 220 220">
+                        <circle class="gauge-bg" cx="110" cy="110" r="90"></circle>
+                        <circle class="gauge-progress" id="m1-gauge-progress" cx="110" cy="110" r="90" 
+                                stroke-dasharray="0 565.48" stroke-dashoffset="0"></circle>
+                    </svg>
+                    <div class="gauge-center">
+                        <div class="gauge-label">M1 SIGNAL</div>
+                        <div class="gauge-value" id="m1-signal">WAIT</div>
+                        <div class="gauge-status" id="m1-status">Scanning...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-row"><span class="label">BB1 Cepat (20):</span><span class="value" id="m1-bb1">-</span></div>
+            <div class="info-row"><span class="label">BB2 Trend (150):</span><span class="value" id="m1-bb2">-</span></div>
+            <div class="info-row"><span class="label">MA Fast / Slow:</span><span class="value" id="m1-ma">- / -</span></div>
+            <div class="info-row"><span class="label">RSI (14) / ATR:</span><span class="value" id="m1-rsi-atr">- / -</span></div>
+            <div class="info-row">
+                <span class="label">Sisa Candle:</span>
+                <span class="value"><span class="timer" id="m1-timer">-</span></span>
+            </div>
+        </div>
+
+        <!-- M5 Card with Gauge -->
+        <div class="card">
+            <h2> TIMEFRAME M5 (TREND MONITOR)</h2>
+            
+            <!-- GAUGE -->
+            <div class="gauge-container">
+                <div class="gauge-wrapper wait" id="m5-gauge-wrapper">
+                    <svg class="gauge-svg" viewBox="0 0 220 220">
+                        <circle class="gauge-bg" cx="110" cy="110" r="90"></circle>
+                        <circle class="gauge-progress" id="m5-gauge-progress" cx="110" cy="110" r="90" 
+                                stroke-dasharray="0 565.48" stroke-dashoffset="0"></circle>
+                    </svg>
+                    <div class="gauge-center">
+                        <div class="gauge-label">M5 SIGNAL</div>
+                        <div class="gauge-value" id="m5-signal">WAIT</div>
+                        <div class="gauge-status" id="m5-status">Scanning...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-row"><span class="label">BB1 Cepat (20):</span><span class="value" id="m5-bb1">-</span></div>
+            <div class="info-row"><span class="label">BB2 Trend (150):</span><span class="value" id="m5-bb2">-</span></div>
+            <div class="info-row"><span class="label">MA Fast / Slow:</span><span class="value" id="m5-ma">- / -</span></div>
+            <div class="info-row"><span class="label">RSI (14) / ATR:</span><span class="value" id="m5-rsi-atr">- / -</span></div>
+            <div class="info-row">
+                <span class="label">Sisa Candle:</span>
+                <span class="value"><span class="timer" id="m5-timer">-</span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Power Matrix -->
+    <div class="card">
+        <h2>⚡ BUY POWER STRENGTH</h2>
+        <div class="power-grid" id="buyPower"></div>
+    </div>
+    <div class="card" style="margin-top:15px;">
+        <h2> SELL POWER STRENGTH</h2>
+        <div class="power-grid" id="sellPower"></div>
+    </div>
+
+    <script>
+        let currentSymbol = document.getElementById('symbolSelect').value;
+        let soundEnabled = true;
+        let lastSignal = { m1: null, m5: null };
+
+        // Gauge configuration
+        const GAUGE_RADIUS = 90;
+        const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS; // 565.48
+        
+        function setGaugeValue(tf, signal, status) {
+            const wrapper = document.getElementById(`${tf}-gauge-wrapper`);
+            const progress = document.getElementById(`${tf}-gauge-progress`);
+            const valueEl = document.getElementById(`${tf}-signal`);
+            const statusEl = document.getElementById(`${tf}-status`);
+            
+            // Remove old classes
+            wrapper.classList.remove('buy', 'sell', 'wait');
+            
+            // Set new value and class
+            valueEl.innerText = signal;
+            statusEl.innerText = status || 'Scanning...';
+            
+            // Calculate gauge fill (0-100%)
+            let fillPercent = 50; // Default WAIT
+            if (signal === 'BUY') {
+                fillPercent = 100;
+                wrapper.classList.add('buy');
+            } else if (signal === 'SELL') {
+                fillPercent = 100;
+                wrapper.classList.add('sell');
+            } else {
+                wrapper.classList.add('wait');
+            }
+            
+            // Animate gauge
+            const offset = GAUGE_CIRCUMFERENCE - (fillPercent / 100) * GAUGE_CIRCUMFERENCE;
+            progress.style.strokeDasharray = `${GAUGE_CIRCUMFERENCE} ${GAUGE_CIRCUMFERENCE}`;
+            progress.style.strokeDashoffset = offset;
+        }
+
+        function updateUI(data) {
+            // Market info
+            document.getElementById('spread').innerText = data.spread || '-';
+            document.getElementById('dailyOpen').innerText = data.daily_open || '-';
+            document.getElementById('openPips').innerText = data.open_pips || '-';
+            document.getElementById('lastUpdate').innerText = new Date().toLocaleTimeString();
+
+            // M1 Gauge & Data
+            if (data.m1) {
+                setGaugeValue('m1', data.m1.trigger, data.m1.status_cross);
+                document.getElementById('m1-bb1').innerText = data.m1.bb1;
+                document.getElementById('m1-bb2').innerText = data.m1.bb2;
+                document.getElementById('m1-ma').innerText = `${data.m1.ma_fast} / ${data.m1.ma_slow}`;
+                document.getElementById('m1-rsi-atr').innerText = `${data.m1.rsi} / ${data.m1.atr}`;
+                document.getElementById('m1-timer').innerText = `${data.m1.time_left}s`;
+
+                // Sound alert
+                if (soundEnabled && data.m1.trigger !== lastSignal.m1 && 
+                    (data.m1.trigger === 'BUY' || data.m1.trigger === 'SELL')) {
+                    playBeep();
+                }
+                lastSignal.m1 = data.m1.trigger;
+            }
+
+            // M5 Gauge & Data
+            if (data.m5) {
+                setGaugeValue('m5', data.m5.trigger, data.m5.status_cross);
+                document.getElementById('m5-bb1').innerText = data.m5.bb1;
+                document.getElementById('m5-bb2').innerText = data.m5.bb2;
+                document.getElementById('m5-ma').innerText = `${data.m5.ma_fast} / ${data.m5.ma_slow}`;
+                document.getElementById('m5-rsi-atr').innerText = `${data.m5.rsi} / ${data.m5.atr}`;
+                document.getElementById('m5-timer').innerText = `${data.m5.time_left}s`;
+
+                if (soundEnabled && data.m5.trigger !== lastSignal.m5 && 
+                    (data.m5.trigger === 'BUY' || data.m5.trigger === 'SELL')) {
+                    playBeep();
+                }
+                lastSignal.m5 = data.m5.trigger;
+            }
+
+            // Power matrix
+            const tfs = ['m1', 'm5', 'm15', 'H1', 'D1', 'W1'];
+            const buyGrid = document.getElementById('buyPower');
+            const sellGrid = document.getElementById('sellPower');
+            buyGrid.innerHTML = '';
+            sellGrid.innerHTML = '';
+
+            tfs.forEach(tf => {
+                const buyVal = data[`buy_${tf}`] || '-';
+                const sellVal = data[`sell_${tf}`] || '-';
+                buyGrid.innerHTML += `<div class="power-cell buy"><div class="tf">${tf.toUpperCase()}</div><div class="val">${buyVal}</div></div>`;
+                sellGrid.innerHTML += `<div class="power-cell sell"><div class="tf">${tf.toUpperCase()}</div><div class="val">${sellVal}</div></div>`;
+            });
+        }
+
+        function playBeep() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 880;
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            } catch(e) {
+                console.warn('Audio error:', e);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('soundLabel').innerText = soundEnabled ? 'ON' : 'OFF';
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch(`/api/radar_data?symbol=${encodeURIComponent(currentSymbol)}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (data.error) {
+                    console.warn('API error:', data.error);
+                    return;
+                }
+                updateUI(data);
+            } catch (e) {
+                console.error('Fetch error:', e);
+            }
+        }
+
+        document.getElementById('symbolSelect').addEventListener('change', (e) => {
+            currentSymbol = e.target.value;
+            lastSignal = { m1: null, m5: null };
+            fetchData();
+        });
+
+        // Polling setiap 1 detik
+        setInterval(fetchData, 1000);
+        fetchData();
+    </script>
+</body>
+</html>
