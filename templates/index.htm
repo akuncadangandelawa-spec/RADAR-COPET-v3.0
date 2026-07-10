@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dashboard Radar Copet v3.0</title>
+    <style>
+        body { background-color: #050a06; color: #00ff66; font-family: monospace; margin: 10px; padding-bottom: 30px; }
+        h2 { text-align: center; font-size: 20px; text-shadow: 0 0 8px #00ff66; margin: 5px 0; }
+        .wrapper { display: flex; flex-direction: column; gap: 15px; max-width: 1200px; margin: auto; }
+        .panel { background: rgba(0, 30, 8, 0.3); border: 1px solid #00ff66; border-radius: 6px; padding: 12px; box-shadow: 0 0 10px rgba(0,255,102,0.2); }
+        .grid-tf { display: flex; flex-direction: column; gap: 15px; }
+        
+        /* Modul Radar Bulat */
+        .radar-box { position: relative; width: 140px; height: 140px; border: 2px solid #00ff66; border-radius: 50%; margin: 5px auto; overflow: hidden; box-shadow: inset 0 0 15px rgba(0,255,102,0.3); }
+        .radar-box::before { content: ''; position: absolute; width: 100%; height: 100%; background: linear-gradient(90deg, rgba(0,255,102,0.3) 0%, transparent 50%); transform-origin: rotate; animation: sweep 3s linear infinite; }
+        @keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .radar-content { position: absolute; width: 100%; text-align: center; top: 35%; font-weight: bold; }
+        .trigger-text { font-size: 22px; letter-spacing: 1px; text-shadow: 0 0 5px #000; }
+        
+        .buy-text { color: #00ffff !important; text-shadow: 0 0 10px #00ffff !important; }
+        .sell-text { color: #ff0055 !important; text-shadow: 0 0 10px #ff0055 !important; }
+        
+        .section-title { font-weight: bold; border-bottom: 1px dashed #00ff66; padding-bottom: 2px; margin-top: 8px; color: #fff; font-size: 14px; }
+        select { background: #000; color: #00ff66; border: 1px solid #00ff66; padding: 10px; width: 100%; font-size: 16px; border-radius: 4px; }
+        
+        /* Tombol Mute Kustom */
+        .mute-btn { background: #00280a; color: #00ff66; border: 1px solid #00ff66; padding: 8px; width: 100%; font-size: 14px; font-family: monospace; font-weight: bold; border-radius: 4px; margin-top: 8px; cursor: pointer; }
+        .muted { background: #330011; color: #ff0055; border-color: #ff0055; }
+
+        table { width: 100%; font-size: 12px; margin-top: 4px; border-collapse: collapse; }
+        td { padding: 4px 0; }
+        .val { text-align: right; color: #fff; font-weight: bold; }
+        
+        @media (min-width: 768px) {
+            .grid-tf { flex-direction: row; }
+            .grid-tf .panel { flex: 1; }
+        }
+    </style>
+    <script>
+        // Variabel Kontrol Suara
+        let isMuted = false;
+        let lastM1Signal = "WAIT";
+        let lastM5Signal = "WAIT";
+        let audioCtx = null;
+
+        // Fungsi Pembuat Suara Beep internal tanpa file mp3
+        function playSound(type) {
+            if (isMuted) return;
+            
+            try {
+                // Inisialisasi Audio Context jika belum ada (Aturan Browser HP)
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                if (type === "BUY") {
+                    // Nada Tinggi Ganda untuk BUY
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Nada A5
+                    osc.type = 'sine';
+                    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.15);
+                } else if (type === "SELL") {
+                    // Nada Rendah Ganda untuk SELL
+                    osc.frequency.setValueAtTime(330, audioCtx.currentTime); // Nada E4
+                    osc.type = 'sawtooth';
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.25);
+                }
+            } catch (e) {
+                console.error("Gagal memutar audio: ", e);
+            }
+        }
+
+        // Fungsi Sakelar Mute
+        function toggleMute() {
+            isMuted = !isMuted;
+            const btn = document.getElementById("mute-button");
+            if (isMuted) {
+                btn.innerText = "🔇 SOUND: MUTED";
+                btn.classList.add("muted");
+            } else {
+                btn.innerText = "🔊 SOUND: ON";
+                btn.classList.remove("muted");
+                // Pemicu ijin audio di beberapa browser smartphone
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        async function updateRadar() {
+            const symbol = document.getElementById("symbol-select").value;
+            try {
+                const response = await fetch(`/api/radar_data?symbol=${symbol}`);
+                const data = await response.json();
+                
+                if(data.error) { return; }
+
+                document.getElementById("live-spread").innerText = `${data.spread} pts`;
+                document.getElementById("d-open").innerText = data.daily_open;
+                document.getElementById("open-pips").innerText = data.open_pips;
+
+                // Proses data TF M1 dan M5
+                ['m1', 'm5'].forEach(tf => {
+                    const tfData = data[tf];
+                    const trig = document.getElementById(`${tf}-trigger`);
+                    trig.innerText = tfData.trigger;
+                    trig.className = "trigger-text " + (tfData.trigger === "BUY" ? "buy-text" : tfData.trigger === "SELL" ? "sell-text" : "");
+                    
+                    document.getElementById(`${tf}-cross`).innerText = tfData.status_cross;
+                    document.getElementById(`${tf}-bb1`).innerText = tfData.bb1;
+                    document.getElementById(`${tf}-bb2`).innerText = tfData.bb2;
+                    document.getElementById(`${tf}-ma-fast`).innerText = tfData.ma_fast;
+                    document.getElementById(`${tf}-ma-slow`).innerText = tfData.ma_slow;
+                    document.getElementById(`${tf}-rsi`).innerText = tfData.rsi;
+                    document.getElementById(`${tf}-atr`).innerText = tfData.atr;
+                    document.getElementById(`${tf}-time`).innerText = `${tfData.time_left}s`;
+                });
+
+                // --- LOGIKA CEK SINYAL BARU UNTUK BUNYI ---
+                // Bunyi hanya dipicu jika sinyal berubah dari WAIT ke BUY/SELL (mencegah bunyi beruntun setiap detik)
+                if (data.m1.trigger !== lastM1Signal) {
+                    if (data.m1.trigger === "BUY" || data.m1.trigger === "SELL") {
+                        playSound(data.m1.trigger);
+                    }
+                    lastM1Signal = data.m1.trigger;
+                }
+                if (data.m5.trigger !== lastM5Signal) {
+                    if (data.m5.trigger === "BUY" || data.m5.trigger === "SELL") {
+                        playSound(data.m5.trigger);
+                    }
+                    lastM5Signal = data.m5.trigger;
+                }
+
+                // Update Matrix Power
+                const matrixTfs = ['m1','m5','m15','H1','D1','W1'];
+                matrixTfs.forEach(tf => {
+                    document.getElementById(`buy-${tf}`).innerText = data[`buy_${tf}`];
+                    document.getElementById(`sell-${tf}`).innerText = data[`sell_${tf}`];
+                });
+
+            } catch (err) { console.error(err); }
+        }
+        setInterval(updateRadar, 1000);
+    </script>
+</head>
+<body onclick="if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();">
+
+    <h2>📡 RADAR COPET v3.0 DELAWA Inc.</h2>
+    
+    <div class="wrapper">
+        <div class="panel">
+            <select id="symbol-select" onchange="updateRadar()">
+                {% for sym in symbols %}
+                    <option value="{{ sym }}">{{ sym }}</option>
+                {% endfor %}
+            </select>
+            
+            <button id="mute-button" class="mute-btn" onclick="toggleMute()">🔊 SOUND: ON</button>
+
+            <table style="margin-top: 8px;">
+                <tr>
+                    <td>Spread: <span id="live-spread" style="color:#fff;">-</span></td>
+                    <td>Open: <span id="d-open" style="color:#fff;">-</span></td>
+                    <td style="text-align:right;">Dist: <span id="open-pips" style="color:#00ffff;">-</span></td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="grid-tf">
+            <div class="panel">
+                <div class="section-title" style="color:#00ffff; border-color:#00ffff; text-align:center;">TIMEFRAME M1 (SCALPING ENTRY)</div>
+                <div class="radar-box">
+                    <div class="radar-content">
+                        <div style="font-size: 10px; color:#00ff66;">M1 SIGNAL</div>
+                        <div id="m1-trigger" class="trigger-text">WAIT</div>
+                    </div>
+                </div>
+                <div id="m1-cross" style="font-size:11px; text-align:center; color:#fff; height:20px; margin-bottom:5px;">Scanning...</div>
+                
+                <table>
+                    <tr><td>BB1 Cepat (20)</td><td id="m1-bb1" class="val">-</td></tr>
+                    <tr><td>BB2 Trend (150)</td><td id="m1-bb2" class="val">-</td></tr>
+                    <tr><td>MA Fast / Slow</td><td class="val"><span id="m1-ma-fast">-</span> / <span id="m1-ma-slow">-</span></td></tr>
+                    <tr><td>RSI (14) / ATR</td><td class="val"><span id="m1-rsi">-</span> / <span id="m1-atr">-</span></td></tr>
+                    <tr><td>Sisa Candle (Time)</td><td id="m1-time" class="val" style="color:#ffcc00;">-</td></tr>
+                </table>
+            </div>
+
+            <div class="panel">
+                <div class="section-title" style="color:#ffcc00; border-color:#ffcc00; text-align:center;">TIMEFRAME M5 (TREND MONITOR)</div>
+                <div class="radar-box">
+                    <div class="radar-content">
+                        <div style="font-size: 10px; color:#00ff66;">M5 SIGNAL</div>
+                        <div id="m5-trigger" class="trigger-text">WAIT</div>
+                    </div>
+                </div>
+                <div id="m5-cross" style="font-size:11px; text-align:center; color:#fff; height:20px; margin-bottom:5px;">Scanning...</div>
+                
+                <table>
+                    <tr><td>BB1 Cepat (20)</td><td id="m5-bb1" class="val">-</td></tr>
+                    <tr><td>BB2 Trend (150)</td><td id="m5-bb2" class="val">-</td></tr>
+                    <tr><td>MA Fast / Slow</td><td class="val"><span id="m5-ma-fast">-</span> / <span id="m5-ma-slow">-</span></td></tr>
+                    <tr><td>RSI (14) / ATR</td><td class="val"><span id="m5-rsi">-</span> / <span id="m5-atr">-</span></td></tr>
+                    <tr><td>Sisa Candle (Time)</td><td id="m5-time" class="val" style="color:#ffcc00;">-</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="section-title">⚡ BUY POWER STRENGTH</div>
+            <table style="text-align:center;">
+                <tr>
+                    <td>M1:<br><span id="buy-m1" class="val">-</span></td>
+                    <td>M5:<br><span id="buy-m5" class="val">-</span></td>
+                    <td>M15:<br><span id="buy-m15" class="val">-</span></td>
+                    <td>H1:<br><span id="buy-H1" class="val">-</span></td>
+                    <td>D1:<br><span id="buy-D1" class="val">-</span></td>
+                    <td>W1:<br><span id="buy-W1" class="val">-</span></td>
+                </tr>
+            </table>
+
+            <div class="section-title" style="border-color:#ff0055;">🔥 SELL POWER STRENGTH</div>
+            <table style="text-align:center;">
+                <tr>
+                    <td>M1:<br><span id="sell-m1" class="val">-</span></td>
+                    <td>M5:<br><span id="sell-m5" class="val">-</span></td>
+                    <td>M15:<br><span id="sell-m15" class="val">-</span></td>
+                    <td>H1:<br><span id="sell-H1" class="val">-</span></td>
+                    <td>D1:<br><span id="sell-D1" class="val">-</span></td>
+                    <td>W1:<br><span id="sell-W1" class="val">-</span></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

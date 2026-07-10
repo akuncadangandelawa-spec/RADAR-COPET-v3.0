@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Copet v3.1 - DELAWA Inc.</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(255,255,255,0.05); padding: 15px 20px;
+            border-radius: 10px; margin-bottom: 15px;
+            border: 1px solid rgba(0,255,136,0.2);
+        }
+        .header h1 { color: #00ff88; font-size: 1.5em; }
+        .header .status { font-size: 0.85em; color: #888; }
+        .header .status.connected { color: #00ff88; }
+        .header .status.error { color: #ff4444; }
+        .controls {
+            display: flex; gap: 10px; align-items: center;
+            background: rgba(255,255,255,0.05); padding: 10px 15px;
+            border-radius: 8px; margin-bottom: 15px;
+        }
+        select, button {
+            background: #1a1f3a; color: #00ff88; border: 1px solid #00ff88;
+            padding: 8px 15px; border-radius: 5px; cursor: pointer;
+            font-weight: bold;
+        }
+        select:hover, button:hover { background: #00ff88; color: #0a0e27; }
+        .grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 15px; margin-bottom: 15px;
+        }
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+        .card {
+            background: rgba(255,255,255,0.05); padding: 15px;
+            border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .card h2 {
+            font-size: 1.1em; margin-bottom: 10px;
+            padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .signal-buy { color: #00ff88; font-weight: bold; font-size: 1.3em; }
+        .signal-sell { color: #ff4444; font-weight: bold; font-size: 1.3em; }
+        .signal-wait { color: #ffaa00; font-weight: bold; font-size: 1.3em; }
+        .signal-nodata { color: #888; font-style: italic; }
+        .info-row {
+            display: flex; justify-content: space-between;
+            padding: 6px 0; border-bottom: 1px dashed rgba(255,255,255,0.05);
+            font-size: 0.9em;
+        }
+        .info-row .label { color: #888; }
+        .info-row .value { color: #fff; font-family: 'Consolas', monospace; }
+        .timer {
+            display: inline-block; background: #ffaa00; color: #000;
+            padding: 3px 10px; border-radius: 4px; font-weight: bold;
+            font-family: monospace;
+        }
+        .power-grid {
+            display: grid; grid-template-columns: repeat(6, 1fr);
+            gap: 8px; margin-top: 10px;
+        }
+        @media (max-width: 600px) { .power-grid { grid-template-columns: repeat(3, 1fr); } }
+        .power-cell {
+            background: rgba(255,255,255,0.05); padding: 10px;
+            border-radius: 5px; text-align: center;
+        }
+        .power-cell .tf { font-size: 0.8em; color: #888; margin-bottom: 5px; }
+        .power-cell .val { font-size: 1.1em; font-weight: bold; }
+        .power-cell.buy { border: 1px solid #00ff88; color: #00ff88; }
+        .power-cell.sell { border: 1px solid #ff4444; color: #ff4444; }
+        .market-info {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 10px; margin-bottom: 15px;
+        }
+        @media (max-width: 600px) { .market-info { grid-template-columns: repeat(2, 1fr); } }
+        .market-info .box {
+            background: rgba(255,255,255,0.05); padding: 12px;
+            border-radius: 8px; text-align: center;
+        }
+        .market-info .box .label { font-size: 0.75em; color: #888; text-transform: uppercase; }
+        .market-info .box .val { font-size: 1.2em; font-weight: bold; color: #00ff88; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📡 RADAR COPET v3.1</h1>
+        <div class="status" id="connectionStatus">⚪ Connecting...</div>
+    </div>
+
+    <div class="controls">
+        <label>Symbol:</label>
+        <select id="symbolSelect">
+            {% for sym in symbols %}
+                <option value="{{ sym }}" {% if sym == default_symbol %}selected{% endif %}>{{ sym }}</option>
+            {% endfor %}
+        </select>
+        <button onclick="toggleSound()">🔊 <span id="soundLabel">ON</span></button>
+        <span style="margin-left:auto; color:#888; font-size:0.85em;">
+            Server: <span id="serverTime">--:--:--</span>
+        </span>
+    </div>
+
+    <div class="market-info">
+        <div class="box"><div class="label">Spread</div><div class="val" id="spread">-</div></div>
+        <div class="box"><div class="label">Daily Open</div><div class="val" id="dailyOpen">-</div></div>
+        <div class="box"><div class="label">Distance</div><div class="val" id="openPips">-</div></div>
+        <div class="box"><div class="label">Bid / Ask</div><div class="val" id="bidAsk">-</div></div>
+    </div>
+
+    <div class="grid">
+        <!-- M1 Card -->
+        <div class="card">
+            <h2>⏱ TIMEFRAME M1 (SCALPING ENTRY)</h2>
+            <div class="info-row">
+                <span class="label">Signal:</span>
+                <span class="value" id="m1-signal">WAIT</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Status:</span>
+                <span class="value" id="m1-status" style="font-size:0.85em;">-</span>
+            </div>
+            <div class="info-row"><span class="label">BB1 Cepat (20):</span><span class="value" id="m1-bb1">-</span></div>
+            <div class="info-row"><span class="label">BB2 Trend (150):</span><span class="value" id="m1-bb2">-</span></div>
+            <div class="info-row"><span class="label">MA Fast / Slow:</span><span class="value" id="m1-ma">- / -</span></div>
+            <div class="info-row"><span class="label">RSI (14) / ATR:</span><span class="value" id="m1-rsi-atr">- / -</span></div>
+            <div class="info-row">
+                <span class="label">Sisa Candle:</span>
+                <span class="value"><span class="timer" id="m1-timer">-</span></span>
+            </div>
+        </div>
+
+        <!-- M5 Card -->
+        <div class="card">
+            <h2>⏱ TIMEFRAME M5 (TREND MONITOR)</h2>
+            <div class="info-row">
+                <span class="label">Signal:</span>
+                <span class="value" id="m5-signal">WAIT</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Status:</span>
+                <span class="value" id="m5-status" style="font-size:0.85em;">-</span>
+            </div>
+            <div class="info-row"><span class="label">BB1 Cepat (20):</span><span class="value" id="m5-bb1">-</span></div>
+            <div class="info-row"><span class="label">BB2 Trend (150):</span><span class="value" id="m5-bb2">-</span></div>
+            <div class="info-row"><span class="label">MA Fast / Slow:</span><span class="value" id="m5-ma">- / -</span></div>
+            <div class="info-row"><span class="label">RSI (14) / ATR:</span><span class="value" id="m5-rsi-atr">- / -</span></div>
+            <div class="info-row">
+                <span class="label">Sisa Candle:</span>
+                <span class="value"><span class="timer" id="m5-timer">-</span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Power Matrix -->
+    <div class="card">
+        <h2>⚡ BUY POWER STRENGTH</h2>
+        <div class="power-grid" id="buyPower"></div>
+    </div>
+    <div class="card" style="margin-top:15px;">
+        <h2>🔥 SELL POWER STRENGTH</h2>
+        <div class="power-grid" id="sellPower"></div>
+    </div>
+
+    <audio id="beepSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgipW..." type="audio/wav">
+    </audio>
+
+    <script>
+        let currentSymbol = document.getElementById('symbolSelect').value;
+        let soundEnabled = true;
+        let lastSignal = { m1: null, m5: null };
+        let isConnected = false;
+
+        // ====== UI UPDATE FUNCTIONS ======
+        function setSignalClass(elementId, signal) {
+            const el = document.getElementById(elementId);
+            el.className = 'value';
+            if (signal === 'BUY') el.classList.add('signal-buy');
+            else if (signal === 'SELL') el.classList.add('signal-sell');
+            else if (signal === 'NO DATA') el.classList.add('signal-nodata');
+            else el.classList.add('signal-wait');
+            el.innerText = signal;
+        }
+
+        function updateUI(data) {
+            // Market info
+            document.getElementById('spread').innerText = data.spread || '-';
+            document.getElementById('dailyOpen').innerText = data.daily_open || '-';
+            document.getElementById('openPips').innerText = data.open_pips || '-';
+            document.getElementById('bidAsk').innerText = data.bid && data.ask
+                ? `${data.bid} / ${data.ask}` : '-';
+            document.getElementById('serverTime').innerText = data.server_time || '--:--:--';
+
+            // M1
+            if (data.m1) {
+                setSignalClass('m1-signal', data.m1.trigger);
+                document.getElementById('m1-status').innerText = data.m1.status_cross;
+                document.getElementById('m1-bb1').innerText = data.m1.bb1;
+                document.getElementById('m1-bb2').innerText = data.m1.bb2;
+                document.getElementById('m1-ma').innerText = `${data.m1.ma_fast} / ${data.m1.ma_slow}`;
+                document.getElementById('m1-rsi-atr').innerText = `${data.m1.rsi} / ${data.m1.atr}`;
+                document.getElementById('m1-timer').innerText = `${data.m1.time_left}s`;
+
+                // Sound alert on signal change
+                if (soundEnabled && data.m1.trigger !== lastSignal.m1 &&
+                    (data.m1.trigger === 'BUY' || data.m1.trigger === 'SELL')) {
+                    playBeep();
+                }
+                lastSignal.m1 = data.m1.trigger;
+            }
+
+            // M5
+            if (data.m5) {
+                setSignalClass('m5-signal', data.m5.trigger);
+                document.getElementById('m5-status').innerText = data.m5.status_cross;
+                document.getElementById('m5-bb1').innerText = data.m5.bb1;
+                document.getElementById('m5-bb2').innerText = data.m5.bb2;
+                document.getElementById('m5-ma').innerText = `${data.m5.ma_fast} / ${data.m5.ma_slow}`;
+                document.getElementById('m5-rsi-atr').innerText = `${data.m5.rsi} / ${data.m5.atr}`;
+                document.getElementById('m5-timer').innerText = `${data.m5.time_left}s`;
+
+                if (soundEnabled && data.m5.trigger !== lastSignal.m5 &&
+                    (data.m5.trigger === 'BUY' || data.m5.trigger === 'SELL')) {
+                    playBeep();
+                }
+                lastSignal.m5 = data.m5.trigger;
+            }
+
+            // Power matrix
+            const tfs = ['m1', 'm5', 'm15', 'H1', 'D1', 'W1'];
+            const buyGrid = document.getElementById('buyPower');
+            const sellGrid = document.getElementById('sellPower');
+            buyGrid.innerHTML = '';
+            sellGrid.innerHTML = '';
+
+            tfs.forEach(tf => {
+                const buyVal = data[`buy_${tf}`] || '-';
+                const sellVal = data[`sell_${tf}`] || '-';
+                buyGrid.innerHTML += `<div class="power-cell buy"><div class="tf">${tf.toUpperCase()}</div><div class="val">${buyVal}</div></div>`;
+                sellGrid.innerHTML += `<div class="power-cell sell"><div class="tf">${tf.toUpperCase()}</div><div class="val">${sellVal}</div></div>`;
+            });
+
+            // Connection status
+            if (!isConnected) {
+                document.getElementById('connectionStatus').innerText = '🟢 Connected';
+                document.getElementById('connectionStatus').classList.add('connected');
+                isConnected = true;
+            }
+        }
+
+        function playBeep() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.frequency.value = 880;
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.start(); osc.stop(ctx.currentTime + 0.3);
+            } catch(e) { console.warn('Audio error:', e); }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('soundLabel').innerText = soundEnabled ? 'ON' : 'OFF';
+        }
+
+        // ====== API POLLING ======
+        async function fetchData() {
+            try {
+                const res = await fetch(`/api/radar_data?symbol=${encodeURIComponent(currentSymbol)}`);
+                if (res.status === 202) {
+                    document.getElementById('connectionStatus').innerText = '🟡 Loading data...';
+                    return;
+                }
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (data.error) {
+                    console.warn('API error:', data.error);
+                    return;
+                }
+                updateUI(data);
+            } catch (e) {
+                console.error('Fetch error:', e);
+                document.getElementById('connectionStatus').innerText = '🔴 Disconnected';
+                document.getElementById('connectionStatus').classList.remove('connected');
+                document.getElementById('connectionStatus').classList.add('error');
+                isConnected = false;
+            }
+        }
+
+        // ====== EVENT LISTENERS ======
+        document.getElementById('symbolSelect').addEventListener('change', (e) => {
+            currentSymbol = e.target.value;
+            lastSignal = { m1: null, m5: null };
+            fetchData();
+        });
+
+        // Polling setiap 1 detik (backend cache di-refresh setiap 0.5s)
+        setInterval(fetchData, 1000);
+        fetchData();
+    </script>
+</body>
+</html>
